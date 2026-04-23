@@ -6,8 +6,10 @@ from typing import Optional
 import httpx
 import typer
 from rich.console import Console
+from rich.live import Live
 from rich.panel import Panel
 from rich.table import Table
+from rich.text import Text
 
 from ssafer import __version__
 from ssafer.core.doctor import collect_doctor_status, install_trivy_with_winget
@@ -28,6 +30,29 @@ _TYPE_KO = {
     "env-metadata": "환경변수 메타데이터",
     "trivy-json": "Trivy 취약점 결과",
 }
+
+_GOOSE = """\
+   [bold blue]┌─── SECURITY ───┐[/bold blue]
+   [bold blue]└────────────────┘[/bold blue]
+  [white]╭──────────────────╮[/white]
+  [white]│[/white]  [yellow]◉[/yellow]          [yellow]◉[/yellow]  [white]│[/white]
+  [white]│[/white]      [yellow]▶▶[/yellow]        [white]│[/white]
+  [white]│[/white]  [blue]╔════════════╗[/blue]  [white]│[/white]  [yellow]≡≡≡[/yellow]
+  [white]│[/white]  [blue]║[/blue] [yellow]★[/yellow] [blue]S · E · C ║[/blue]  [white]│[/white]
+  [white]│[/white]  [blue]╚════════════╝[/blue]  [white]│[/white]
+  [white]╰──────────────────╯[/white]
+      [yellow]▐██▌    ▐██▌[/yellow]
+     [yellow]▐████▌  ▐████▌[/yellow]"""
+
+
+def _scan_panel(step: str) -> Panel:
+    content = Text.from_markup(f"{_GOOSE}\n\n[bold green]▶  {step}[/bold green]")
+    return Panel(
+        content,
+        title="[bold blue]SSAfer 보안 스캔[/bold blue]",
+        border_style="blue",
+        padding=(1, 3),
+    )
 
 
 @app.callback()
@@ -76,9 +101,9 @@ def run(
     api_url: Optional[str] = typer.Option(None, "--api-url", help="Backend API base URL for --upload."),
 ) -> None:
     """Create a local sanitized SSAfer scan package."""
-    with console.status("[bold green]스캔 준비 중...[/bold green]", spinner="dots") as status:
+    with Live(_scan_panel("스캔 준비 중..."), refresh_per_second=8, console=console) as live:
         def on_step(msg: str) -> None:
-            status.update(f"[bold green]{msg}[/bold green]")
+            live.update(_scan_panel(msg))
 
         result = run_scan(path.resolve(), save_raw=save_raw, on_step=on_step)
 
