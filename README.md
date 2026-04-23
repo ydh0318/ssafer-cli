@@ -65,6 +65,12 @@ ssafer run --path .\my-project
 ssafer report --path .\my-project
 ```
 
+결과 파일 위치, 스캔 대상, 업로드/AI 분석에 들어갈 artifact 목록까지 보려면:
+
+```powershell
+ssafer report --path .\my-project --details
+```
+
 ### 4. 백엔드 업로드 (선택사항)
 
 ```powershell
@@ -81,7 +87,7 @@ ssafer upload --path .\my-project --api-url http://your-backend:8080
 | `ssafer doctor` | 로컬 환경 점검 |
 | `ssafer install-tools` | Trivy 자동 설치 (winget) |
 | `ssafer run` | 스캔 실행 및 결과 저장 |
-| `ssafer report` | 마지막 스캔 결과 요약 출력 |
+| `ssafer report` | 마지막 스캔 결과 요약/상세 출력 |
 | `ssafer upload` | 스캔 결과 백엔드 업로드 |
 
 ### `ssafer run` 옵션
@@ -102,6 +108,17 @@ ssafer run --path .\my-project [옵션]
 ```powershell
 ssafer run --path .\my-project --upload --api-url http://your-backend:8080
 ```
+
+### `ssafer report` 옵션
+
+```powershell
+ssafer report --path .\my-project --details
+```
+
+| 옵션 | 설명 | 기본값 |
+|------|------|--------|
+| `--path`, `-p` | 결과를 확인할 프로젝트 경로 | 현재 디렉터리 |
+| `--details`, `-d` | 결과 파일, 대상, artifact 목록 출력 | false |
 
 ---
 
@@ -151,6 +168,26 @@ my-project/
 # .gitignore
 .ssafer/
 ```
+
+### 보기 좋은 리포트에서 확인할 것
+
+```powershell
+ssafer report --path .\my-project --details
+```
+
+주요 확인 항목:
+
+- `Status`: `SUCCESS`, `PARTIAL`, `FAILED` 중 하나입니다.
+- `Output files`: 생성된 scan package, sanitized Compose, Trivy 결과 경로입니다.
+- `Targets`: SSAfer가 발견한 `.env`, Dockerfile, Compose 세트입니다.
+- `Artifacts`: 백엔드 업로드와 AI 분석에 들어갈 산출물 목록입니다.
+- `Finding count`: Trivy artifact 안의 finding 개수입니다.
+
+정상적으로 생성되어야 하는 artifact 타입:
+
+- `sanitized-effective-compose`: 마스킹된 effective Compose 설정
+- `env-metadata`: `.env` 키 목록과 마스킹/해시 메타데이터
+- `trivy-json`: Trivy가 생성한 Dockerfile/config 스캔 결과
 
 ---
 
