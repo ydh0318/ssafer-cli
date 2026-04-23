@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import platform
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -15,9 +16,18 @@ from ssafer.core.sanitize import sanitize_compose_yaml
 from ssafer.core.trivy import run_trivy_config, trivy_version
 
 
-def run_scan(project_root: Path, save_raw: bool = False) -> dict[str, Any]:
+def run_scan(
+    project_root: Path,
+    save_raw: bool = False,
+    on_step: Callable[[str], None] | None = None,
+) -> dict[str, Any]:
+    def _step(msg: str) -> None:
+        if on_step:
+            on_step(msg)
+
     warnings: list[str] = []
     project_root = project_root.resolve()
+    _step("프로젝트 파일 탐색 중...")
     files = discover_project_files(project_root)
     salt = load_or_create_project_salt(project_root)
 
@@ -36,14 +46,17 @@ def run_scan(project_root: Path, save_raw: bool = False) -> dict[str, Any]:
     artifacts: list[dict[str, Any]] = []
     source_hashes = _source_hashes(project_root, [*files.env_files, *files.dockerfiles, *files.compose_files], warnings)
     effective_hashes: dict[str, str] = {}
+    _step("Compose 세트 구성 중...")
     compose_sets = build_compose_sets(files.compose_files, warnings)
 
     for compose_set in compose_sets:
+        _step(f"Compose 설정 렌더링 중: {compose_set.name}")
         ok, raw_config, error = render_effective_config(compose_set)
         if not ok:
             warnings.append(error or f"Failed to render compose set '{compose_set.name}'.")
             continue
 
+        _step(f"민감정보 마스킹 중: {compose_set.name}")
         sanitized = sanitize_compose_yaml(raw_config)
         safe_name = _safe_artifact_name(compose_set.name)
         sanitized_path = sanitized_dir / f"{safe_name}.compose.yml"
@@ -61,6 +74,7 @@ def run_scan(project_root: Path, save_raw: bool = False) -> dict[str, Any]:
             }
         )
 
+    _step("환경변수 파일 파싱 중...")
     env_metadata = parse_env_metadata(files.env_files, salt, project_root, warnings)
     for env_item in env_metadata:
         artifacts.append(
@@ -75,6 +89,7 @@ def run_scan(project_root: Path, save_raw: bool = False) -> dict[str, Any]:
     trivy_findings = 0
     trivy_version_value = trivy_version()
     for dockerfile in files.dockerfiles:
+        _step(f"Trivy 취약점 스캔 중: {dockerfile.name}")
         output_path = trivy_dir / f"{_safe_artifact_name(str(dockerfile.relative_to(project_root)))}.json"
         ok, count, error = run_trivy_config(dockerfile, output_path)
         if not ok:
@@ -123,6 +138,7 @@ def run_scan(project_root: Path, save_raw: bool = False) -> dict[str, Any]:
         "analysisSummary": None,
     }
 
+    _step("결과 저장 중...")
     result_path = results_dir / f"{scan_id}.json"
     result_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
     (results_dir / "last_scan.txt").write_text(result_path.name, encoding="utf-8")
