@@ -32,17 +32,19 @@ _TYPE_KO = {
 }
 
 _GOOSE = """\
-   [bold blue]┌─── SECURITY ───┐[/bold blue]
-   [bold blue]└────────────────┘[/bold blue]
-  [white]╭──────────────────╮[/white]
-  [white]│[/white]  [yellow]◉[/yellow]          [yellow]◉[/yellow]  [white]│[/white]
-  [white]│[/white]      [yellow]▶▶[/yellow]        [white]│[/white]
-  [white]│[/white]  [blue]╔════════════╗[/blue]  [white]│[/white]  [yellow]≡≡≡[/yellow]
-  [white]│[/white]  [blue]║[/blue] [yellow]★[/yellow] [blue]S · E · C ║[/blue]  [white]│[/white]
-  [white]│[/white]  [blue]╚════════════╝[/blue]  [white]│[/white]
-  [white]╰──────────────────╯[/white]
-      [yellow]▐██▌    ▐██▌[/yellow]
-     [yellow]▐████▌  ▐████▌[/yellow]"""
+   [bold blue]┌── SECURITY ──┐[/bold blue]
+   [bold blue]└──────────────┘[/bold blue]
+   [white]╭──────────────╮[/white]
+   [white]│[/white]   [yellow]◉[/yellow]      [yellow]◉[/yellow]   [white]│[/white]
+   [white]│[/white]      [yellow]▶▶[/yellow]      [white]│[/white]
+   [white]╰──────────────╯[/white]
+   [white]╭──────────────╮[/white]
+   [white]│[/white][blue]╔════════════╗[/blue][white]│[/white]  [yellow]≡≡≡[/yellow]
+   [white]│[/white][blue]║[/blue] [yellow]★[/yellow][blue]  S·E·C   ║[/blue][white]│[/white]
+   [white]│[/white][blue]╚════════════╝[/blue][white]│[/white]
+   [white]╰──────────────╯[/white]
+      [yellow]▐█▌    ▐█▌[/yellow]
+     [yellow]▐███▌  ▐███▌[/yellow]"""
 
 
 def _scan_panel(step: str) -> Panel:
