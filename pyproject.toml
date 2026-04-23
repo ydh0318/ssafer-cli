@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ssafer"
-version = "0.1.0"
+version = "0.2.0"
 description = "Windows-first security configuration artifact collector for SSAfer."
 readme = "README.md"
 requires-python = ">=3.10"
