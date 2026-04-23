@@ -1,0 +1,5 @@
+services:
+  app:
+    image: nginx:latest
+    environment:
+      DB_PASSWORD: super-secret
