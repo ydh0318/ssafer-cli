@@ -31,7 +31,14 @@ def trivy_version() -> str | None:
     if executable is None:
         return None
     try:
-        completed = subprocess.run([executable, "--version"], capture_output=True, text=True, timeout=15)
+        completed = subprocess.run(
+            [executable, "--version"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=15,
+        )
     except (OSError, subprocess.TimeoutExpired):
         return None
     if completed.returncode != 0:
@@ -47,7 +54,14 @@ def run_trivy_config(target: Path, output_path: Path) -> tuple[bool, int, str | 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     command = [executable, "config", "--format", "json", "--output", str(output_path), str(target)]
     try:
-        completed = subprocess.run(command, capture_output=True, text=True, timeout=120)
+        completed = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=120,
+        )
     except subprocess.TimeoutExpired:
         return False, 0, f"Trivy timed out for {target}."
     except OSError as exc:

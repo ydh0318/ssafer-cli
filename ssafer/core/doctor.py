@@ -28,7 +28,14 @@ def collect_doctor_status() -> dict:
 
 def _command_first_line(command: list[str]) -> str | None:
     try:
-        completed = subprocess.run(command, capture_output=True, text=True, timeout=15)
+        completed = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=15,
+        )
     except (OSError, subprocess.TimeoutExpired):
         return None
     if completed.returncode != 0:
@@ -58,7 +65,14 @@ def install_trivy_with_winget() -> tuple[bool, str]:
         "--accept-source-agreements",
     ]
     try:
-        completed = subprocess.run(command, capture_output=True, text=True, timeout=300)
+        completed = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=300,
+        )
     except subprocess.TimeoutExpired:
         return False, "Timed out while installing Trivy with winget."
     except OSError as exc:
@@ -100,6 +114,8 @@ def _winget_package_is_listed(package_id: str) -> bool:
             ["winget", "list", "--id", package_id, "-e"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=60,
         )
     except (OSError, subprocess.TimeoutExpired):
