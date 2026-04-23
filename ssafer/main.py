@@ -6,6 +6,7 @@ from typing import Optional
 import httpx
 import typer
 from rich.console import Console
+from rich.panel import Panel
 from rich.table import Table
 
 from ssafer import __version__
@@ -81,13 +82,19 @@ def upload(
 
 
 @app.command()
-def report(path: Path = typer.Option(Path("."), "--path", "-p", help="Project root containing .ssafer results.")) -> None:
+def report(
+    path: Path = typer.Option(Path("."), "--path", "-p", help="Project root containing .ssafer results."),
+    details: bool = typer.Option(False, "--details", "-d", help="Print targets, artifacts, and output paths."),
+) -> None:
     """Print the last local scan summary."""
-    scan = load_last_scan(path.resolve())
+    project_root = path.resolve()
+    scan = load_last_scan(project_root)
     if scan is None:
         console.print("[yellow]No local scan package found.[/yellow]")
         raise typer.Exit(code=1)
     _print_scan_summary(scan)
+    if details:
+        _print_scan_details(scan, project_root)
 
 
 def _print_scan_summary(scan: dict) -> None:
@@ -103,6 +110,96 @@ def _print_scan_summary(scan: dict) -> None:
         console.print("[yellow]Warnings[/yellow]")
         for warning in warnings:
             console.print(f"- {warning}")
+
+
+def _print_scan_details(scan: dict, project_root: Path) -> None:
+    results_dir = project_root / ".ssafer" / "results"
+    last_scan_path = results_dir / f"{scan.get('scanId', 'unknown')}.json"
+    marker_path = results_dir / "last_scan.txt"
+    sanitized_dir = project_root / ".ssafer" / "effective" / "sanitized"
+    trivy_dir = project_root / ".ssafer" / "trivy"
+
+    console.print()
+    console.print(
+        Panel.fit(
+            "\n".join(
+                [
+                    f"Scan ID: {scan.get('scanId', 'unknown')}",
+                    f"Status: {scan.get('analysisStatus', 'UNKNOWN')}",
+                    f"Tool version: {scan.get('toolVersion', 'unknown')}",
+                    f"Trivy: {scan.get('toolVersions', {}).get('trivy') or 'not found'}",
+                    f"Docker Compose: {scan.get('toolVersions', {}).get('dockerCompose') or 'not found'}",
+                ]
+            ),
+            title="Scan",
+        )
+    )
+
+    output_table = Table(title="Output files")
+    output_table.add_column("Name")
+    output_table.add_column("Path", overflow="fold")
+    output_table.add_row("scan package", str(last_scan_path))
+    output_table.add_row("last scan marker", str(marker_path))
+    output_table.add_row("sanitized compose dir", str(sanitized_dir))
+    output_table.add_row("trivy dir", str(trivy_dir))
+    console.print(output_table)
+
+    _print_targets(scan)
+    _print_artifacts(scan)
+
+
+def _print_targets(scan: dict) -> None:
+    targets = scan.get("targets", {})
+
+    target_table = Table(title="Targets")
+    target_table.add_column("Type")
+    target_table.add_column("Count")
+    target_table.add_column("Items", overflow="fold")
+    target_table.add_row("env files", str(len(targets.get("envFiles", []))), _join_items(targets.get("envFiles", [])))
+    target_table.add_row(
+        "dockerfiles",
+        str(len(targets.get("dockerfiles", []))),
+        _join_items(targets.get("dockerfiles", [])),
+    )
+    compose_names = [
+        f"{item.get('name', 'unknown')} ({', '.join(item.get('files', []))})"
+        for item in targets.get("composeSets", [])
+    ]
+    target_table.add_row("compose sets", str(len(compose_names)), _join_items(compose_names))
+    console.print(target_table)
+
+
+def _print_artifacts(scan: dict) -> None:
+    artifacts = scan.get("artifacts", [])
+    artifact_table = Table(title="Artifacts")
+    artifact_table.add_column("Type")
+    artifact_table.add_column("Target")
+    artifact_table.add_column("Hash")
+    artifact_table.add_column("Finding count")
+
+    for artifact in artifacts:
+        artifact_type = artifact.get("type", "unknown")
+        target = artifact.get("target") or artifact.get("composeSet") or "-"
+        finding_count = "-"
+        if artifact_type == "trivy-json":
+            finding_count = str(_count_trivy_artifact_findings(artifact.get("content", {})))
+        artifact_table.add_row(artifact_type, target, str(artifact.get("hash", ""))[:12], finding_count)
+    console.print(artifact_table)
+
+
+def _count_trivy_artifact_findings(content: dict) -> int:
+    total = 0
+    for result in content.get("Results", []):
+        total += len(result.get("Misconfigurations", []) or [])
+        total += len(result.get("Vulnerabilities", []) or [])
+        total += len(result.get("Secrets", []) or [])
+    return total
+
+
+def _join_items(items: list[str]) -> str:
+    if not items:
+        return "-"
+    return "\n".join(items)
 
 
 def _print_upload_response(response: dict) -> None:
