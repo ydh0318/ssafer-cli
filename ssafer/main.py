@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import threading
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -31,29 +33,36 @@ _TYPE_KO = {
     "trivy-json": "Trivy 취약점 결과",
 }
 
-_GOOSE = """\
-   [bold blue]┌── SECURITY ──┐[/bold blue]
-   [bold blue]└──────────────┘[/bold blue]
-   [white]╭──────────────╮[/white]
-   [white]│[/white]   [yellow]◉[/yellow]      [yellow]◉[/yellow]   [white]│[/white]
-   [white]│[/white]      [yellow]▶▶[/yellow]      [white]│[/white]
-   [white]╰──────────────╯[/white]
-   [white]╭──────────────╮[/white]
-   [white]│[/white][blue]╔════════════╗[/blue][white]│[/white]  [yellow]≡≡≡[/yellow]
-   [white]│[/white][blue]║[/blue] [yellow]★[/yellow][blue]  S·E·C   ║[/blue][white]│[/white]
-   [white]│[/white][blue]╚════════════╝[/blue][white]│[/white]
-   [white]╰──────────────╯[/white]
-      [yellow]▐█▌    ▐█▌[/yellow]
-     [yellow]▐███▌  ▐███▌[/yellow]"""
+# 왼쪽 방향 거위 프레임 (발 교차)
+_GOOSE_LEFT = [
+    "  _     \n<(.)__  \n (___/  \n ♩  ♩  ",
+    "  _     \n<(.)__  \n (___/  \n  ♩♩   ",
+]
+
+# 오른쪽 방향 거위 프레임 (발 교차)
+_GOOSE_RIGHT = [
+    "    _   \n __(.)> \n  \\___) \n  ♩  ♩ ",
+    "    _   \n __(.)> \n  \\___) \n   ♩♩  ",
+]
+
+_TRACK_W = 36
+_GOOSE_W = 8
 
 
-def _scan_panel(step: str) -> Panel:
-    content = Text.from_markup(f"{_GOOSE}\n\n[bold green]▶  {step}[/bold green]")
+def _walking_panel(pos: int, direction: int, frame: int, step: str) -> Panel:
+    src = _GOOSE_RIGHT if direction > 0 else _GOOSE_LEFT
+    goose = src[frame % 2]
+    pad = " " * pos
+    padded = "\n".join(pad + line for line in goose.split("\n"))
+    content = Text()
+    content.append(padded, style="yellow")
+    content.append("\n" + "─" * _TRACK_W, style="dim white")
+    content.append(f"\n\n▶  {step}", style="bold green")
     return Panel(
         content,
         title="[bold blue]SSAfer 보안 스캔[/bold blue]",
         border_style="blue",
-        padding=(1, 3),
+        width=_TRACK_W + 6,
     )
 
 
@@ -103,13 +112,43 @@ def run(
     api_url: Optional[str] = typer.Option(None, "--api-url", help="Backend API base URL for --upload."),
 ) -> None:
     """Create a local sanitized SSAfer scan package."""
-    with Live(_scan_panel("스캔 준비 중..."), refresh_per_second=8, console=console) as live:
-        def on_step(msg: str) -> None:
-            live.update(_scan_panel(msg))
+    step_ref = ["스캔 준비 중..."]
+    result_ref: list = [None]
+    error_ref: list = [None]
 
-        result = run_scan(path.resolve(), save_raw=save_raw, on_step=on_step)
+    def on_step(msg: str) -> None:
+        step_ref[0] = msg
 
-    _print_scan_summary(result)
+    def do_scan() -> None:
+        try:
+            result_ref[0] = run_scan(path.resolve(), save_raw=save_raw, on_step=on_step)
+        except Exception as exc:  # noqa: BLE001
+            error_ref[0] = exc
+
+    thread = threading.Thread(target=do_scan, daemon=True)
+    thread.start()
+
+    pos, direction, frame = 0, 1, 0
+    with Live(console=console, refresh_per_second=10) as live:
+        while thread.is_alive():
+            live.update(_walking_panel(pos, direction, frame, step_ref[0]))
+            frame = (frame + 1) % 2
+            pos += direction * 2
+            if pos >= _TRACK_W - _GOOSE_W:
+                direction = -1
+                pos = _TRACK_W - _GOOSE_W
+            elif pos <= 0:
+                direction = 1
+                pos = 0
+            time.sleep(0.12)
+
+    thread.join()
+
+    if error_ref[0]:
+        console.print(f"[red]스캔 중 오류 발생:[/red] {error_ref[0]}")
+        raise typer.Exit(code=1)
+
+    _print_scan_summary(result_ref[0])
     if upload:
         response = _upload_or_exit(path.resolve(), api_url=api_url)
         _print_upload_response(response)
